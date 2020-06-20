@@ -94,8 +94,11 @@ public class MoveScript : MonoBehaviour
     }
 
     public Dot speed;
+    public int speedVal;
+    public int distVal;
 
     public Dot pos;
+    public Dot dir;
 
     public bool swX = false;
     public bool swY = false;
@@ -128,6 +131,8 @@ public class MoveScript : MonoBehaviour
     public int steps = 1000;
     public int noiseNeurons = 1000;
 
+    System.Random rdGen = new System.Random();
+
     void Move()
     {
         Dot newPos = pos + speed;
@@ -138,6 +143,22 @@ public class MoveScript : MonoBehaviour
             CheckCollide(barrier, pos, newPos);
         }
         pos = newPos;
+    }
+
+    void MoveSegment()
+    {
+        if(dir.x < 0 && dir.y < 0)
+        {
+            dir.x = rdGen.NextDouble() * 2 * distVal - distVal;
+            dir.y = Math.Sqrt(distVal * distVal - dir.x * dir.x);
+            if(rdGen.Next(2) > 0)
+            {
+                dir.y = -dir.y;
+            }
+            speed.x = (speedVal / distVal) * dir.x;
+            speed.y = (speedVal / distVal) * dir.y;
+        }
+        Move();
     }
 
 
@@ -183,11 +204,21 @@ public class MoveScript : MonoBehaviour
         speed.x = 10;
         speed.y = 0;
 
-        StreamWriter file = new StreamWriter("data.txt");
-        var rand = new System.Random();
+        StreamWriter file = new StreamWriter("data.csv");
+        file.Write("Step");
+        for(int i = 0; i < neuroConn.Count; ++i)
+        {
+                file.Write(",Neuron " + (i + 1).ToString());
+        }
+        for (int i = 0; i < noiseNeurons; ++i)
+        {
+            file.Write(",Noise neuron " + (i + 1).ToString());
+        }
+        file.Write("\n");
         for (int i = 0; i < steps; ++i)
         {
-            Move();
+            MoveSegment();
+            file.Write((i + 1).ToString());
 
             foreach (List<int> listConn in neuroConn)
             {
@@ -196,12 +227,12 @@ public class MoveScript : MonoBehaviour
                 {
                     curVal = Math.Max(curVal, areas[curArea].dist(pos));
                 }
-                file.Write(curVal.ToString() + " ");
+                file.Write("," + curVal.ToString().Replace(',', '.'));
             }
 
             for(int j = 0; j < noiseNeurons; ++j)
             {
-                file.Write(rand.NextDouble().ToString() + " ");
+                file.Write("," + rdGen.NextDouble().ToString().Replace(',', '.'));
             }
 
             file.Write("\n");
@@ -213,7 +244,8 @@ public class MoveScript : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        
+        dir.x = 0;
+        dir.y = 0;
     }
 
     // Update is called once per frame
