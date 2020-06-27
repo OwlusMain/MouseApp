@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System;
 using System.IO;
 using UnityEngine;
+using System.Diagnostics;
 
 public struct Dot {
     public double x;
@@ -38,7 +39,6 @@ public struct Circle {
         double x = d.x - ctr.x;
         double y = d.y - ctr.y;
         double res = r - Math.Sqrt(x * x + y * y);
-        Debug.Log(res.ToString());
         if(res < 0)
         {
             res = 0;
@@ -66,11 +66,11 @@ public class MoveScript : MonoBehaviour
         {
             flag = false;
         }
-        if (d1.x <= d2.x && (pt.x > d2.x || pt.x < d1.x))
+        if (d1.x < d2.x && (pt.x > d2.x || pt.x < d1.x))
         {
             flag = false;
         }
-        if (d1.y <= d2.y && (pt.y > d2.y || pt.y < d1.y))
+        if (d1.y < d2.y && (pt.y > d2.y || pt.y < d1.y))
         {
             flag = false;
         }
@@ -82,6 +82,7 @@ public class MoveScript : MonoBehaviour
         Dot iDot;
         if (d1.x == d2.x)
         {
+
             iDot.x = d1.x;
             iDot.y = d3.y + (d4.y - d3.y) / (d4.x - d3.x) * (iDot.x - d3.x);
         }
@@ -96,6 +97,7 @@ public class MoveScript : MonoBehaviour
     public Dot speed;
     public int speedVal;
     public int distVal;
+    int curDist;
 
     public Dot pos;
     public Dot dir;
@@ -103,25 +105,29 @@ public class MoveScript : MonoBehaviour
     public bool swX = false;
     public bool swY = false;
 
-    void CheckCollide(Square sq, Dot st, Dot fin)
+    bool CheckCollide(Square sq, Dot st, Dot fin)
     {
         Dot tmp;
         if (st.x > fin.x)
         {
-            tmp = fin;
-            fin = st;
-            st = fin;
+            tmp = new Dot(fin);
+            fin = new Dot(st);
+            st = new Dot(tmp);
         }
+        bool isColl = false;
         if ((IsIntersect(sq.lc, new Dot(sq.lc.x, sq.rc.y), st, fin) || IsIntersect(new Dot(sq.rc.x, sq.lc.y), sq.rc, st, fin)) && !swX)
         {
             swX = true;
             speed.x = -speed.x;
+            isColl = true;
         }
         if ((IsIntersect(sq.lc, new Dot(sq.rc.x, sq.lc.y), st, fin) || IsIntersect(new Dot(sq.lc.x, sq.rc.y), sq.rc, st, fin)) && !swY)
         {
             swY = true;
             speed.y = -speed.y;
+            isColl = true;
         }
+        return isColl;
     }
 
     List<Circle> areas;
@@ -138,27 +144,36 @@ public class MoveScript : MonoBehaviour
         Dot newPos = pos + speed;
         swX = false;
         swY = false;
+        bool isNeedCh = true;
 
         foreach (Square barrier in barriers) {
-            CheckCollide(barrier, pos, newPos);
+            if(CheckCollide(barrier, new Dot(pos), new Dot(newPos)))
+            {
+                isNeedCh = false;
+            }
         }
-        pos = newPos;
+        if (isNeedCh)
+        {
+            pos = newPos;
+        }
     }
 
     void MoveSegment()
     {
-        if(dir.x < 0 && dir.y < 0)
+        if(curDist <= 0)
         {
+            curDist = distVal;
             dir.x = rdGen.NextDouble() * 2 * distVal - distVal;
             dir.y = Math.Sqrt(distVal * distVal - dir.x * dir.x);
             if(rdGen.Next(2) > 0)
             {
                 dir.y = -dir.y;
             }
-            speed.x = (speedVal / distVal) * dir.x;
-            speed.y = (speedVal / distVal) * dir.y;
+            speed.x = ((double)(speedVal) / distVal) * dir.x;
+            speed.y = ((double)(speedVal) / distVal) * dir.y;
         }
         Move();
+        curDist -= speedVal;
     }
 
 
@@ -177,7 +192,6 @@ public class MoveScript : MonoBehaviour
             curBar.rc.x = curGO.transform.position.x + curGO.transform.localScale.x * 5;
             curBar.rc.y = curGO.transform.position.z + curGO.transform.localScale.z * 5;
             barriers.Add(curBar);
-            
         }
 
         GOs = GameObject.FindGameObjectsWithTag("Area");
@@ -205,7 +219,7 @@ public class MoveScript : MonoBehaviour
         speed.y = 0;
 
         StreamWriter file = new StreamWriter("data.csv");
-        file.Write("Step");
+        file.Write("Step,x,y");
         for(int i = 0; i < neuroConn.Count; ++i)
         {
                 file.Write(",Neuron " + (i + 1).ToString());
@@ -218,7 +232,7 @@ public class MoveScript : MonoBehaviour
         for (int i = 0; i < steps; ++i)
         {
             MoveSegment();
-            file.Write((i + 1).ToString());
+            file.Write((i + 1).ToString() + "," + pos.x.ToString().Replace(',', '.') + "," + pos.y.ToString().Replace(',', '.'));
 
             foreach (List<int> listConn in neuroConn)
             {
@@ -226,6 +240,14 @@ public class MoveScript : MonoBehaviour
                 foreach (int curArea in listConn)
                 {
                     curVal = Math.Max(curVal, areas[curArea].dist(pos));
+                }
+                if(curVal > 0)
+                {
+                    curVal += (rdGen.NextDouble() - 0.5) / 5;
+                    if(curVal < 0)
+                    {
+                        curVal = 0;
+                    }
                 }
                 file.Write("," + curVal.ToString().Replace(',', '.'));
             }
@@ -244,6 +266,7 @@ public class MoveScript : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
+        curDist = 0;
         dir.x = 0;
         dir.y = 0;
     }
